@@ -13,7 +13,7 @@ cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 if not (cap.isOpened()):
     print("Could not open video device")
 number = 69
-count = 31
+count = 531
 while True:
     # pill_name = pills[number]
     ret, frame = cap.read()
@@ -32,7 +32,7 @@ while True:
         # SPACE pressed
         img_name = '{}_{}.png'.format(pill_name,count)
         count += 1
-        cv2.imwrite("pill_dataset/test_20221228/" + img_name, frame)
+        cv2.imwrite("pill_dataset/test_20230328/" + img_name, frame)
         print("{} written!".format(img_name))
 
     # if(count == 22):

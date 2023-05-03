@@ -1,6 +1,7 @@
 # #threshold
 import cv2
 import numpy as np
+import demo_superpoint_test as sp
 
 # # cv.THRESH_BINARY
 # # cv.THRESH_BINARY_INV
@@ -11,82 +12,59 @@ import numpy as np
 #     retval, img_bin = cv2.threshold(img, pos, 255, cv2.THRESH_BINARY_INV)
 #     cv2.imshow('Binary', img_bin)
 
-def RemoveReflections(ImgPath):
-    img = cv2.imread(ImgPath, cv2.IMREAD_GRAYSCALE)
-    img2 = cv2.imread(ImgPath)
-    retval, img_bin = cv2.threshold(img, 235, 255, cv2.THRESH_BINARY_INV)
-    cv2.namedWindow('Binary')
-    # cv2.createTrackbar('threshold', 'Binary', 215, 255, Thresholding)
-    # img_bin_a = cv2.cvtColor(img_bin, cv2.THRESH_BINARY)
-    # cv2.imshow('Input', img)
-    # cv2.imshow('Binary', img_bin)
+def RemoveReflections(Img1,Img2):
+    Img1_gary =cv2.cvtColor(Img1, cv2.COLOR_BGR2GRAY)
+    Img2_gary =cv2.cvtColor(Img2, cv2.COLOR_BGR2GRAY)
 
-    h = img_bin.shape[0]           # 取得圖片高度
-    w = img_bin.shape[1]           # 取得圖片寬度
-    Reflections =[]
+    # 將灰度圖像轉換為浮點數類型
+    Img1_gary = Img1_gary.astype(float)
+    Img2_gary = Img2_gary.astype(float)
+
+    # 計算兩張照片的均值和標準差
+    mean1, std1 = cv2.meanStdDev(Img1_gary)
+    mean2, std2 = cv2.meanStdDev(Img2_gary)
+
+    # 對兩張照片進行色彩平衡
+    cv2.imshow('Img2_before', Img2)
+    # Img1 = np.uint8(np.clip((Img1 - mean1) / std1 * std2 + mean2 , 0, 255))
+    Img2 = np.uint8(np.clip((Img2 - mean2) / std2 * std1 + mean1 , 0, 255))
+    cv2.imshow('Img2_after', Img2)
+
+    retval, Img1_bin = cv2.threshold(Img1_gary, 215, 255, cv2.THRESH_BINARY_INV)
+    # cv2.imshow('Img1_gary2', Img1_bin)
+    retval, Img2_bin = cv2.threshold(Img2_gary, 215, 255, cv2.THRESH_BINARY_INV)
+
+    h = Img1_bin.shape[0]           # 取得圖片高度
+    w = Img1_bin.shape[1]           # 取得圖片寬度
 
     for x in range(w):
         for y in range(h):
-            if(img_bin[y,x] == 0):
-                img2[y, x] = img_bin[y, x]   # 如果在範圍內的顏色，換成背景圖的像素值
-                Reflections.append((x,y))
-    add_Reflections = []
-    # 擴增反光區域
-    # for location in Reflections:
-    #     x1 = location[0]
-    #     y1 = location[1]
-    #     for i in range(-2,3):
-    #         # add.append((x1 + i, y1))
-    #         # add.append((x1, y1 + i))
-    #         if (x1 + i, y1) not in add_Reflections and (x1 + i)>=0:
-    #             add_Reflections.append((x1 + i, y1))
-    #         if (x1, y1 + i) not in add_Reflections and (y1 + i)>=0:
-    #             add_Reflections.append((x1, y1 + i))
-    #     # print(len(add_Reflections))
-        # exit()
-    cv2.imshow('aa', img2)
-    cv2.imwrite('output.png', img2)
-    # cv2.imshow('a', img_bin_a)
-    # cv2.waitKey()
-    # cv2.destroyAllWindows()
-    return img2,add_Reflections
+            if(Img1_bin[y,x] == 0):
+                Img1[y, x] = 0   # 如果在範圍內的顏色，換成背景圖的像素值
+            # if(Img2_bin[y,x] == 0):
+            #     Img2[y, x] = 0   # 如果在範圍內的顏色，換成背景圖的像素值
 
-def ORB_Feature(img1,img2,ReflectionsPoint1,ReflectionsPoint2):
+    cv2.imshow('RemoveReflectionsImg1', Img1)
+    cv2.imshow('RemoveReflectionsImg2', Img2)
+    cv2.imwrite('outputImg1.png', Img1)
+    cv2.imwrite('outputImg2.png', Img2)
+
+    return Img1,Img2
+
+def ORB_Feature(img1,img2):
     # 初始化ORB
     orb = cv2.ORB_create()
     brisk = cv2.BRISK_create()
     akaze = cv2.AKAZE_create()
 
-    Feature_model = brisk
+    Feature_model = akaze
     # 寻找关键点
     kp1 = Feature_model.detect(img1)
     kp2 = Feature_model.detect(img2)
 
-    points1 = cv2.KeyPoint_convert(kp1)
-    points2 = cv2.KeyPoint_convert(kp2)
-
-    feature_point1 = []
-    feature_point2 = []
-
-    index1 = 0
-    index2 = 0
-    for i in points1:
-        x = int(i[0])
-        y = int(i[1])
-        if (x,y) not in ReflectionsPoint1:
-            feature_point1.append(kp1[index1])
-        index1 +=1
-
-    for j in points2:
-        x = int(j[0])
-        y = int(j[1])
-        if (x,y) not in ReflectionsPoint2:
-            feature_point2.append(kp2[index2])
-        index2 +=1
-
     # 计算描述符
-    kp1, des1 = Feature_model.compute(img1, feature_point1)
-    kp2, des2 = Feature_model.compute(img2, feature_point2)
+    kp1, des1 = Feature_model.compute(img1, kp1)
+    kp2, des2 = Feature_model.compute(img2, kp2)
 
     # 画出关键点
     outimg1 = cv2.drawKeypoints(img1, keypoints=kp1, outImage=None)
@@ -136,20 +114,6 @@ def ORB_Feature(img1,img2,ReflectionsPoint1,ReflectionsPoint2):
                        flags=2)
     # 绘制匹配结果
     draw_match(img1, img2, kp1, kp2, good_match,draw_params)
-    im_out = cv2.warpPerspective(img1, homo, (640, 480))
-    cv2.imshow("Match Result0", im_out)
-    cv2.waitKey(0)
-
-    h = im_out.shape[0]           # 取得圖片高度
-    w = im_out.shape[1]           # 取得圖片寬度
-    for x in range(w):
-        for y in range(h):
-            if (im_out[y,x][0] == 0):
-                im_out[y,x] = img2[y,x]
-
-    outimg4 = np.hstack([outimg1, im_out])
-    cv2.imshow("Key Points 2", outimg4)
-    cv2.waitKey(0)
 
     return homo
 
@@ -161,14 +125,20 @@ def draw_match(img1, img2, kp1, kp2, match, draw_params):
 
 def show_xy(event, x, y, flags, param):
     if event == 1:
+        print(homo)
+        print(np.array([[x], [y] ,[1]]))
+
+        g = np.random.randint(0, 200)
+        b = np.random.randint(0, 200)
+        color = (b, g, 255)
+
         lo = homo @ np.array([[x], [y] ,[1]])
-        # print(homo)
-        # print(lo)
+        print(lo)
         img2 = img.copy()  # 複製原本的圖片
-        cv2.circle(img2, (x, y), 3, (0, 0, 255), -1)  # 繪製紅色圓
-        cv2.circle(img2, (int(lo[0,0])+640, int(lo[1,0])), 3, (0, 0, 255), -1)  # 繪製紅色圓
-        cv2.imshow('drawPoint', img2)
-        # print(color)  # 印出顏色
+        cv2.circle(img, (x, y), 3, color, -1)  # 繪製紅色圓
+        cv2.circle(img, (int(lo[0,0])+640, int(lo[1,0])), 3, color, -1)  # 繪製紅色圓
+        cv2.imshow('drawPoint', img)
+        print(color)  # 印出顏色
 
 def homography(img1, img2, visualize=False):
     FLANN_INDEX_KDTREE = 0
@@ -218,22 +188,22 @@ def homography(img1, img2, visualize=False):
                        flags=2)
     # 绘制匹配结果
     draw_match(img1, img2, kp1, kp2, good_matches, draw_params)
-    im_out = cv2.warpPerspective(img1, homo, (640, 480))
-    cv2.imshow("Match Result0", im_out)
-    cv2.waitKey(0)
-
-    im_out = RemoveReflections2(im_out)
-    h = im_out.shape[0]  # 取得圖片高度
-    w = im_out.shape[1]  # 取得圖片寬度
-    for x in range(w):
-        for y in range(h):
-            if (im_out[y, x][0] == 0):
-                im_out[y, x] = img2[y, x]
-
-    outimg4 = np.hstack([outimg1, im_out])
-    cv2.imshow("Key Points 2", outimg4)
-    cv2.imwrite('pill_dataset/test_20221228/result0.png', im_out)
-    cv2.waitKey(0)
+    # im_out = cv2.warpPerspective(img1, homo, (640, 480))
+    # cv2.imshow("Match Result0", im_out)
+    # cv2.waitKey(0)
+    #
+    # im_out = RemoveReflections2(im_out)
+    # h = im_out.shape[0]  # 取得圖片高度
+    # w = im_out.shape[1]  # 取得圖片寬度
+    # for x in range(w):
+    #     for y in range(h):
+    #         if (im_out[y, x][0] == 0):
+    #             im_out[y, x] = img2[y, x]
+    #
+    # outimg4 = np.hstack([img1, im_out])
+    # cv2.imshow("Key Points 2", outimg4)
+    # # cv2.imwrite('pill_dataset/test_20221228/result0.png', im_out)
+    # cv2.waitKey(0)
 
     return homo
 
@@ -256,7 +226,6 @@ def RemoveReflections2(Img):
 
     h = img_bin.shape[0]           # 取得圖片高度
     w = img_bin.shape[1]           # 取得圖片寬度
-    Reflections =[]
 
     for x in range(w):
         for y in range(h):
@@ -266,17 +235,57 @@ def RemoveReflections2(Img):
     cv2.imshow("Img", Img)
     return Img
 
+def Binary(Img):
+    img =cv2.cvtColor(Img, cv2.COLOR_BGR2GRAY)
+    img2 = Img
+    retval, img_bin = cv2.threshold(img, 180, 255, cv2.THRESH_BINARY)
+    cv2.namedWindow('Binary')
+
+    h = img_bin.shape[0]           # 取得圖片高度
+    w = img_bin.shape[1]           # 取得圖片寬度
+
+    cv2.imshow('aa', img2)
+    cv2.imwrite('output.png', img2)
+
+    return img_bin
+
+def merge_images(Img1,Img2):
+    Img1_homo = cv2.warpPerspective(Img1, homo, (640, 480))
+    cv2.waitKey(0)
+    Img1_out,Img2_out = RemoveReflections(Img1_homo,Img2)
+    cv2.imshow("Img1_out", Img1_out)
+    cv2.imshow("Img2_out", Img2_out)
+    h = Img1_out.shape[0]           # 取得圖片高度
+    w = Img1_out.shape[1]           # 取得圖片寬度
+
+    for x in range(w):
+        for y in range(h):
+            if (Img1_out[y,x][0] == 0):
+                Img1_homo[y,x] = Img2_out[y,x]
+
+    outimg4 = np.hstack([Img1, Img1_homo])
+    cv2.imshow("Key Points 2", outimg4)
+
+    cv2.imshow("Result", Img1_homo)
+    cv2.waitKey(0)
+
 if __name__ == '__main__':
     # 读取图片found
-    image1 = cv2.imread('pill_dataset/test_20221228/test_22.png')
-    image2 = cv2.imread('pill_dataset/test_20221228/test_26.png')
-    # image1,ReflectionsPoint1 = RemoveReflections('pill_dataset/test_20221214/test_16.png')
-    # image2,ReflectionsPoint2 = RemoveReflections('pill_dataset/test_20221214/test_18.png')
-    # homo = ORB_Feature(image1,image2,ReflectionsPoint1,ReflectionsPoint2)
+    image1 = cv2.imread('pill_dataset/Demo/14/test_421.png')
+    image2 = cv2.imread('pill_dataset/Demo/14/test_423.png')
     image1 = sharpen(image1)
     image2 = sharpen(image2)
-    homo = homography(image1,image2)
+    # homo = ORB_Feature(image1,image2)
+    # homo = homography(image1,image2)
+    # -------------------------------------------------
+    # 二值化後特徵匹配
+    image1_Binary = Binary(image1)
+    image2_Binary = Binary(image2)
+    # homo = ORB_Feature(image1_Binary,image2_Binary)
+    homo = homography(image1_Binary,image2_Binary)
+    # --------------------------------------------------
 
+    merge_images(image1, image2)
     img = np.hstack([image1, image2])
 
     # print(type(M))
@@ -286,3 +295,37 @@ if __name__ == '__main__':
 
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+ # -----------------------------------------------------------------
+ #    homo = sp.main('pill_dataset/Demo/13')
+ #    print(homo)
+ #
+ #    image1 = cv2.imread('pill_dataset/Demo/13/test_403.png')
+ #    image2 = cv2.imread('pill_dataset/Demo/13/test_406.png')
+ #
+ #    image1 = sharpen(image1)
+ #    image2 = sharpen(image2)
+ #
+ #    im_out = cv2.warpPerspective(image1, homo, (640, 480))
+ #    cv2.imshow("Match Result0", im_out)
+ #    cv2.waitKey(0)
+ #
+ #    im_out = RemoveReflections2(im_out)
+ #    h = im_out.shape[0]  # 取得圖片高度
+ #    w = im_out.shape[1]  # 取得圖片寬度
+ #    for x in range(w):
+ #        for y in range(h):
+ #            if (im_out[y, x][0] == 0):
+ #                im_out[y, x] = image2[y, x]
+ #
+ #    outimg4 = np.hstack([image1, im_out])
+ #    cv2.imshow("Key Points 2", outimg4)
+ #    # cv2.imwrite('pill_dataset/test_20221228/result0.png', im_out)
+ #    cv2.waitKey(0)
+ #
+ #    img = np.hstack([image1, image2])
+ #
+ #    cv2.imshow('drawPoint', img)
+ #    cv2.setMouseCallback('drawPoint', show_xy)
+ #
+ #    cv2.waitKey(0)
+ #    cv2.destroyAllWindows()
