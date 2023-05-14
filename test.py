@@ -12,45 +12,6 @@ import demo_superpoint_test as sp
 #     retval, img_bin = cv2.threshold(img, pos, 255, cv2.THRESH_BINARY_INV)
 #     cv2.imshow('Binary', img_bin)
 
-def RemoveReflections(Img1,Img2):
-    Img1_gary =cv2.cvtColor(Img1, cv2.COLOR_BGR2GRAY)
-    Img2_gary =cv2.cvtColor(Img2, cv2.COLOR_BGR2GRAY)
-
-    # 將灰度圖像轉換為浮點數類型
-    Img1_gary = Img1_gary.astype(float)
-    Img2_gary = Img2_gary.astype(float)
-
-    # 計算兩張照片的均值和標準差
-    mean1, std1 = cv2.meanStdDev(Img1_gary)
-    mean2, std2 = cv2.meanStdDev(Img2_gary)
-
-    # 對兩張照片進行色彩平衡
-    cv2.imshow('Img2_before', Img2)
-    # Img1 = np.uint8(np.clip((Img1 - mean1) / std1 * std2 + mean2 , 0, 255))
-    Img2 = np.uint8(np.clip((Img2 - mean2) / std2 * std1 + mean1 , 0, 255))
-    cv2.imshow('Img2_after', Img2)
-
-    retval, Img1_bin = cv2.threshold(Img1_gary, 215, 255, cv2.THRESH_BINARY_INV)
-    # cv2.imshow('Img1_gary2', Img1_bin)
-    retval, Img2_bin = cv2.threshold(Img2_gary, 215, 255, cv2.THRESH_BINARY_INV)
-
-    h = Img1_bin.shape[0]           # 取得圖片高度
-    w = Img1_bin.shape[1]           # 取得圖片寬度
-
-    for x in range(w):
-        for y in range(h):
-            if(Img1_bin[y,x] == 0):
-                Img1[y, x] = 0   # 如果在範圍內的顏色，換成背景圖的像素值
-            # if(Img2_bin[y,x] == 0):
-            #     Img2[y, x] = 0   # 如果在範圍內的顏色，換成背景圖的像素值
-
-    cv2.imshow('RemoveReflectionsImg1', Img1)
-    cv2.imshow('RemoveReflectionsImg2', Img2)
-    cv2.imwrite('outputImg1.png', Img1)
-    cv2.imwrite('outputImg2.png', Img2)
-
-    return Img1,Img2
-
 def ORB_Feature(img1,img2):
     # 初始化ORB
     orb = cv2.ORB_create()
@@ -207,14 +168,6 @@ def homography(img1, img2, visualize=False):
 
     return homo
 
-def sharpen(img, sigma=60):
-
-    blur_img = cv2.GaussianBlur(img, (0, 0), sigma)
-    usm = cv2.addWeighted(img, 1.5, blur_img, -0.5, 0)
-
-    return usm
-
-
 def RemoveReflections2(Img):
     img = cv2.cvtColor(Img, cv2.COLOR_BGR2GRAY)
     retval, img_bin = cv2.threshold(img, 220, 255, cv2.THRESH_BINARY_INV)
@@ -235,11 +188,17 @@ def RemoveReflections2(Img):
     cv2.imshow("Img", Img)
     return Img
 
+def sharpen(img, sigma=60):
+
+    blur_img = cv2.GaussianBlur(img, (0, 0), sigma)
+    usm = cv2.addWeighted(img, 1.5, blur_img, -0.5, 0)
+
+    return usm
+
 def Binary(Img):
     img =cv2.cvtColor(Img, cv2.COLOR_BGR2GRAY)
     img2 = Img
     retval, img_bin = cv2.threshold(img, 180, 255, cv2.THRESH_BINARY)
-    cv2.namedWindow('Binary')
 
     h = img_bin.shape[0]           # 取得圖片高度
     w = img_bin.shape[1]           # 取得圖片寬度
@@ -249,30 +208,100 @@ def Binary(Img):
 
     return img_bin
 
-def merge_images(Img1,Img2):
-    Img1_homo = cv2.warpPerspective(Img1, homo, (640, 480))
-    cv2.waitKey(0)
-    Img1_out,Img2_out = RemoveReflections(Img1_homo,Img2)
-    cv2.imshow("Img1_out", Img1_out)
-    cv2.imshow("Img2_out", Img2_out)
-    h = Img1_out.shape[0]           # 取得圖片高度
-    w = Img1_out.shape[1]           # 取得圖片寬度
+def adjust_brightness(Img1,Img2):
+    # 將兩張照片轉換為灰度圖像
+    Img1_gary =cv2.cvtColor(Img1, cv2.COLOR_BGR2GRAY)
+    Img2_gary =cv2.cvtColor(Img2, cv2.COLOR_BGR2GRAY)
+    # 將灰度圖像轉換為浮點數類型
+    Img1_gary = Img1_gary.astype(float)
+    Img2_gary = Img2_gary.astype(float)
+
+    # 計算兩張照片的均值和標準差
+    mean1, std1 = cv2.meanStdDev(Img1_gary)
+    mean2, std2 = cv2.meanStdDev(Img2_gary)
+
+    # 對兩張照片進行亮度平衡
+    # cv2.imshow('Img2_before', Img2)
+    # Img1 = np.uint8(np.clip((Img1 - mean1) / std1 * std2 + mean2 , 0, 255))
+    Img2 = np.uint8(np.clip((Img2 - mean2) / std2 * std1 + mean1, 0, 255))
+    # cv2.imshow('Img2_after', Img2)
+
+    return Img1,Img2
+
+def  RemoveReflections(Img1):
+    tmp = Img1.copy()
+    Img1_gary =cv2.cvtColor(Img1, cv2.COLOR_BGR2GRAY)
+
+    retval, Img1_bin = cv2.threshold(Img1_gary, 245, 255, cv2.THRESH_BINARY_INV)
+
+    h = Img1_bin.shape[0]           # 取得圖片高度
+    w = Img1_bin.shape[1]           # 取得圖片寬度
 
     for x in range(w):
         for y in range(h):
-            if (Img1_out[y,x][0] == 0):
-                Img1_homo[y,x] = Img2_out[y,x]
+            if(Img1_bin[y,x] == 0):
+                tmp[y, x] = 0   # 如果在範圍內的顏色，換成背景圖的像素值
+
+    cv2.imshow('aa', tmp)
+    return tmp
+
+
+def blend_images(image1, image2, mask):
+    # 將遮罩轉換為浮點數型態
+    # mask = mask.astype(np.float32) / 255.0
+
+    # 進行泊松融合操作
+    blended_image = cv2.seamlessClone(image1, image2, mask, (0, 0), cv2.MIXED_CLONE)
+
+    return blended_image
+
+def merge_images(Img1,Img2,Img1_bin):
+    Img1_bin = cv2.warpPerspective(Img1_bin, homo, (640, 480))
+    retval, mask = cv2.threshold(Img1_bin, 1, 255, cv2.THRESH_BINARY_INV)
+    blurred_mask = cv2.GaussianBlur(mask, (5, 5), 0)
+    edges = cv2.Canny(mask, 100, 200)
+    cv2.imshow('mask', mask)
+    cv2.imshow('edges', edges)
+    Img1_homo = cv2.warpPerspective(Img1, homo, (640, 480))
+    cv2.waitKey(0)
+    h = Img1.shape[0]           # 取得圖片高度
+    w = Img2.shape[1]           # 取得圖片寬度
+
+    for x in range(w):
+        for y in range(h):
+            if (Img1_bin[y,x][0] == 0):
+                Img1_homo[y,x] = Img2[y,x]
+
+    # 對遮罩區域應用高斯模糊
+    blurred_image = cv2.GaussianBlur(Img1_homo, (5, 5), 0)
+
+    # 部分區域高斯模糊
+    blurred_image = np.where(edges[..., np.newaxis] > 0, blurred_image, Img1_homo)
 
     outimg4 = np.hstack([Img1, Img1_homo])
     cv2.imshow("Key Points 2", outimg4)
 
-    cv2.imshow("Result", Img1_homo)
+    cv2.imshow('Original Result', Img1_homo)
+    cv2.imshow('Blurred Result', blurred_image)
     cv2.waitKey(0)
+
+
+    # retval, Img1_bin = cv2.threshold(Img1_bin, 1, 255, cv2.THRESH_BINARY_INV)
+    # Img1_bin = cv2.cvtColor(Img1_bin, cv2.COLOR_BGR2GRAY)
+    # # 進行圖像融合
+    # blended_image = blend_images(Img1_homo, Img2, Img1_bin)
+    #
+    # # 顯示原始圖片和融合後的圖片
+    # cv2.imshow('Result', blended_image)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
 
 if __name__ == '__main__':
     # 读取图片found
     image1 = cv2.imread('pill_dataset/Demo/14/test_421.png')
     image2 = cv2.imread('pill_dataset/Demo/14/test_423.png')
+    # cv2.imshow('image1', image1)
+    # cv2.imshow('image2', image2)
     image1 = sharpen(image1)
     image2 = sharpen(image2)
     # homo = ORB_Feature(image1,image2)
@@ -285,7 +314,15 @@ if __name__ == '__main__':
     homo = homography(image1_Binary,image2_Binary)
     # --------------------------------------------------
 
-    merge_images(image1, image2)
+    image1,image2 = adjust_brightness(image1,image2)
+    Img1_bin = RemoveReflections(image1)
+    cv2.imshow('Img1_bin', Img1_bin)
+    cv2.imshow('image1', image1)
+    cv2.imshow('image2', image2)
+
+    # cv2.imshow('image1', image1)
+    # cv2.imshow('Img1_bin', Img1_bin)
+    merge_images(image1, image2 ,Img1_bin)
     img = np.hstack([image1, image2])
 
     # print(type(M))
@@ -295,6 +332,7 @@ if __name__ == '__main__':
 
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+
  # -----------------------------------------------------------------
  #    homo = sp.main('pill_dataset/Demo/13')
  #    print(homo)
