@@ -203,7 +203,6 @@ def Binary(Img):
     h = img_bin.shape[0]           # 取得圖片高度
     w = img_bin.shape[1]           # 取得圖片寬度
 
-    cv2.imshow('aa', img2)
     cv2.imwrite('output.png', img2)
 
     return img_bin
@@ -232,17 +231,27 @@ def  RemoveReflections(Img1):
     tmp = Img1.copy()
     Img1_gary =cv2.cvtColor(Img1, cv2.COLOR_BGR2GRAY)
 
-    retval, Img1_bin = cv2.threshold(Img1_gary, 245, 255, cv2.THRESH_BINARY_INV)
+    Img1_lab = cv2.cvtColor(Img1, cv2.COLOR_BGR2LAB)
+    # Define the lower and upper threshold for white color in LAB color space
+    lower_threshold = np.array([248, 128, 128], dtype=np.uint8)
+    upper_threshold = np.array([255, 255, 255], dtype=np.uint8)
+
+    mask_lab = cv2.inRange(Img1_lab, lower_threshold, upper_threshold)
+
+    highlighted_area = cv2.bitwise_and(Img1, Img1, mask=mask_lab)
+    highlighted_area_gary = cv2.cvtColor(highlighted_area, cv2.COLOR_BGR2GRAY)
+
+    retval, Img1_bin = cv2.threshold(Img1_gary, 245, 255, cv2.THRESH_BINARY)
 
     h = Img1_bin.shape[0]           # 取得圖片高度
     w = Img1_bin.shape[1]           # 取得圖片寬度
 
     for x in range(w):
         for y in range(h):
-            if(Img1_bin[y,x] == 0):
+            if(Img1_bin[y,x] == 255 and highlighted_area_gary[y,x] == 255):
+            # if(Img1_bin[y,x] == 0):
                 tmp[y, x] = 0   # 如果在範圍內的顏色，換成背景圖的像素值
 
-    cv2.imshow('aa', tmp)
     return tmp
 
 
@@ -251,7 +260,7 @@ def blend_images(image1, image2, mask):
     # mask = mask.astype(np.float32) / 255.0
 
     # 進行泊松融合操作
-    blended_image = cv2.seamlessClone(image1, image2, mask, (0, 0), cv2.MIXED_CLONE)
+    blended_image = cv2.seamlessClone(image1, image2, mask, (320, 240), cv2.MIXED_CLONE)
 
     return blended_image
 
@@ -263,33 +272,38 @@ def merge_images(Img1,Img2,Img1_bin):
     cv2.imshow('mask', mask)
     cv2.imshow('edges', edges)
     Img1_homo = cv2.warpPerspective(Img1, homo, (640, 480))
+    cv2.imshow('Img1_homo', Img1_homo)
+    cv2.imshow('Img1_bin', Img1_bin)
     cv2.waitKey(0)
     h = Img1.shape[0]           # 取得圖片高度
     w = Img2.shape[1]           # 取得圖片寬度
 
+    cv2.imshow('Img1_bin', Img1_bin)
     for x in range(w):
         for y in range(h):
             if (Img1_bin[y,x][0] == 0):
                 Img1_homo[y,x] = Img2[y,x]
 
+    Result_img = Img1_homo
     # 對遮罩區域應用高斯模糊
-    blurred_image = cv2.GaussianBlur(Img1_homo, (5, 5), 0)
+    blurred_image = cv2.GaussianBlur(Result_img, (5, 5), 0)
 
     # 部分區域高斯模糊
-    blurred_image = np.where(edges[..., np.newaxis] > 0, blurred_image, Img1_homo)
+    blurred_image = np.where(edges[..., np.newaxis] > 0, blurred_image, Result_img)
 
-    outimg4 = np.hstack([Img1, Img1_homo])
+    outimg4 = np.hstack([Img1, Result_img])
     cv2.imshow("Key Points 2", outimg4)
 
-    cv2.imshow('Original Result', Img1_homo)
+    cv2.imshow('Original Result', Result_img)
     cv2.imshow('Blurred Result', blurred_image)
     cv2.waitKey(0)
 
 
     # retval, Img1_bin = cv2.threshold(Img1_bin, 1, 255, cv2.THRESH_BINARY_INV)
-    # Img1_bin = cv2.cvtColor(Img1_bin, cv2.COLOR_BGR2GRAY)
+    # Img1_bin_copy = Img1_bin.copy()
     # # 進行圖像融合
-    # blended_image = blend_images(Img1_homo, Img2, Img1_bin)
+    # cv2.imshow('Img1_bin', Img1_bin)
+    # blended_image = blend_images(Img2, Img1_bin_copy, Img1_bin)
     #
     # # 顯示原始圖片和融合後的圖片
     # cv2.imshow('Result', blended_image)
@@ -316,7 +330,6 @@ if __name__ == '__main__':
 
     image1,image2 = adjust_brightness(image1,image2)
     Img1_bin = RemoveReflections(image1)
-    cv2.imshow('Img1_bin', Img1_bin)
     cv2.imshow('image1', image1)
     cv2.imshow('image2', image2)
 
