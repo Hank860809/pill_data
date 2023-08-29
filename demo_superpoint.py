@@ -669,7 +669,7 @@ if __name__ == '__main__':
     opt = parser.parse_args()
 
     # This class helps load input images from different sources.
-    vs = VideoStreamer('assets/icl_snippet', opt.camid, opt.H, opt.W, opt.skip, opt.img_glob)
+    vs = VideoStreamer('pill_dataset/video_pilldata/01.mp4', opt.camid, opt.H, opt.W, opt.skip, opt.img_glob)
     # vs = VideoStreamer(opt.input, opt.camid, opt.H, opt.W, opt.skip, opt.img_glob)
 
     print('==> Loading pre-trained network.')
