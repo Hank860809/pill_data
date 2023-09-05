@@ -50,7 +50,11 @@ def Feature_matching(img1,img2,kp1,des1,kp2,des2):
 
     # 对描述子进行匹配
     # matches = Matcher.match(des1, des2)
-    matches = Matcher.knnMatch(des1, des2, k=2)
+    try:
+        matches = Matcher.knnMatch(des1, des2, k=2)
+    except:
+        Matcher = bf_L2
+        matches = Matcher.knnMatch(des1, des2, k=2)
 
     good_matches = []
     try:
@@ -71,14 +75,14 @@ def Feature_matching(img1,img2,kp1,des1,kp2,des2):
             if m.distance < GOOD_MATCH_THRESHOLD * n.distance:
                 good_matches.append(m)
 
-    if len(good_matches) > 10:
+    if len(good_matches) > 4:
         src_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
         dst_pts = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
         homo, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
 
         matchesMask = mask.ravel().tolist()
     else:
-        print("Not enough matches are found - {}/{}".format(len(good_matches), 10))
+        print("Not enough matches are found - {}/{}".format(len(good_matches), 4))
         matchesMask = None
 
     draw_params = dict(singlePointColor=None,
@@ -172,6 +176,7 @@ def adjust_brightness(Img1,Img2):
 
     return Img1,Img2
 
+# 將反光部分轉換成黑色像素
 def  RemoveReflections(Img1):
     tmp = Img1.copy()
     Img1_gary =cv2.cvtColor(Img1, cv2.COLOR_BGR2GRAY)
@@ -191,14 +196,16 @@ def  RemoveReflections(Img1):
     h = Img1_bin.shape[0]           # 取得圖片高度
     w = Img1_bin.shape[1]           # 取得圖片寬度
 
-    # cv2.imshow('RemoveReflections_mask', Img1_bin)
+    cv2.imshow('RemoveReflections_mask', Img1_bin)
+    cv2.imshow('highlighted_area_gary', highlighted_area_gary)
     cv2.waitKey(0)
     for x in range(w):
         for y in range(h):
             if(Img1_bin[y,x] == 255 and highlighted_area_gary[y,x] == 255):
             # if(Img1_bin[y,x] == 0):
-                tmp[y, x] = 255   # 如果在範圍內的顏色，換成背景圖的像素值
+                tmp[y, x] = 0   # 如果在範圍內的顏色，換成背景圖的像素值
 
+    cv2.imshow('tmp', tmp)
     return tmp
 
 
@@ -211,43 +218,104 @@ def blend_images(image1, image2, mask):
 
     return blended_image
 
+def homography_image(img,homo):
+
+    Img = cv2.warpPerspective(img, homo, (img.shape[1], img.shape[0]))
+
+    return Img
 # 合成兩張照片
-def merge_images(Img1,Img2,Img1_bin,homo):
-    Img1_bin = cv2.warpPerspective(Img1_bin, homo, (Img1.shape[1], Img1.shape[0]))
-    retval, mask = cv2.threshold(Img1_bin, 1, 255, cv2.THRESH_BINARY_INV)
-    cv2.imshow('Img1_bin', Img1_bin)
-    cv2.imshow('mask', mask)
-    blurred_mask = cv2.GaussianBlur(mask, (5, 5), 0)
-    edges = cv2.Canny(mask, 100, 200)
-    # cv2.imshow('mask', mask)
-    # cv2.imshow('edges', edges)
-    Img1_homo = cv2.warpPerspective(Img1, homo, (Img1.shape[1], Img1.shape[0]))
+def merge_images(Img1,Img2,homo):
+
+    Img1_homo = homography_image(Img1,homo)
+
     # cv2.imshow('Img1_homo', Img1_homo)
-    # cv2.imshow('Img1_bin', Img1_bin)
-    cv2.waitKey(0)
+    # cv2.imshow('Img2', Img2)
+
+    # cv2.waitKey(0)
     h = Img1.shape[0]           # 取得圖片高度
     w = Img2.shape[1]           # 取得圖片寬度
 
+    # 宣告一個和照片相同大小的陣列來存儲灰度值
+    img1_gray_intensity = np.zeros((h, w), dtype=np.float32)
+    img2_gray_intensity = np.zeros((h, w), dtype=np.float32)
+    gray_intensity_mean = np.zeros((h, w), dtype=np.float32)
     for x in range(w):
         for y in range(h):
-            if (Img1_bin[y,x][0] == 255 and Img1_bin[y,x][1] == 255 and Img1_bin[y,x][2] == 255):
+            Img1_pixel = Img1_homo[y, x]
+            Img2_pixel = Img2[y, x]
+            img1_gray_intensity[y, x] = (0.299 * Img1_pixel[0] + 0.587 * Img1_pixel[1] + 0.114 * Img1_pixel[2])
+            img2_gray_intensity[y, x] = (0.299 * Img2_pixel[0] + 0.587 * Img2_pixel[1] + 0.114 * Img2_pixel[2])
+            gray_intensity_mean[y, x] = ((img1_gray_intensity[y, x] + img2_gray_intensity[y, x]) * 0.5)
+            if (img1_gray_intensity[y,x] == 0):
                 Img1_homo[y,x] = Img2[y,x]
 
-    Result_img = Img1_homo
+    # temp1,temp2,temp3分別用來顯示 閥值30 / 閥值50 / 不取閥值 合成後的照片
+    temp1 = Img1_homo.copy()
+    temp2 = Img1_homo.copy()
+    temp3 = Img1_homo.copy()
+
+    for x in range(w):
+        for y in range(h):
+            if ((img1_gray_intensity[y,x] - gray_intensity_mean[y,x]) >= 30):
+                temp1[y,x] = Img1_homo[y,x]*0.5 + Img2[y,x]*0.5
+            if ((img1_gray_intensity[y,x] - gray_intensity_mean[y,x]) >= 50):
+                temp2[y,x] = Img1_homo[y,x]*0.5 + Img2[y,x]*0.5
+            temp3[y,x] = (Img1_homo[y,x]*img2_gray_intensity[y,x]/(gray_intensity_mean[y,x]*2)+Img2[y,x]*img1_gray_intensity[y,x]/(gray_intensity_mean[y,x]*2))
+
     # 對遮罩區域應用高斯模糊
-    blurred_image = cv2.GaussianBlur(Result_img, (5, 5), 0)
+    # blurred_image = cv2.GaussianBlur(Result_img, (5, 5), 0)
 
-    # 部分區域高斯模糊
-    blurred_image = np.where(edges[..., np.newaxis] > 0, blurred_image, Result_img)
+    # # 部分區域高斯模糊
+    # blurred_image = np.where(edges[..., np.newaxis] > 0, blurred_image, Result_img)
 
-    outimg4 = np.hstack([Img1, Result_img])
-    # cv2.imshow("Key Points 2", outimg4)
+    # outimg4 = np.hstack([Img1, Result_img])
     #
-    # cv2.imshow('Original Result', Result_img)
-    # cv2.imshow('Blurred Result', blurred_image)
+    # cv2.imshow('Img1_homo', Img1_homo)
+    # cv2.imshow('temp1', temp1)
+    # cv2.imshow('temp2', temp2)
+    # cv2.imshow('temp3', temp3)
     # cv2.waitKey(0)
 
-    return blurred_image
+    return temp1,temp2,temp3
+
+# 合成兩張照片
+# def merge_images(Img1,Img2,Img1_bin,homo):
+#
+#     Img1_bin = cv2.warpPerspective(Img1_bin, homo, (Img1.shape[1], Img1.shape[0]))
+#     retval, mask = cv2.threshold(Img1_bin, 1, 255, cv2.THRESH_BINARY_INV)
+#     cv2.imshow('Img1_bin', Img1_bin)
+#     # cv2.imshow('mask', mask)
+#     blurred_mask = cv2.GaussianBlur(mask, (5, 5), 0)
+#     edges = cv2.Canny(mask, 100, 200)
+#     # cv2.imshow('mask', mask)
+#     # cv2.imshow('edges', edges)
+#     Img1_homo = cv2.warpPerspective(Img1, homo, (Img1.shape[1], Img1.shape[0]))
+#     cv2.imshow('Img1_homo', Img1_homo)
+#     # cv2.imshow('Img1_bin', Img1_bin)
+#     cv2.waitKey(0)
+#     h = Img1.shape[0]           # 取得圖片高度
+#     w = Img2.shape[1]           # 取得圖片寬度
+#
+#     for x in range(w):
+#         for y in range(h):
+#             if (Img1_bin[y,x][0] == 0 and Img1_bin[y,x][1] == 0 and Img1_bin[y,x][2] == 0):
+#                 Img1_homo[y,x] = Img2[y,x]
+#
+#     Result_img = Img1_homo
+#     # 對遮罩區域應用高斯模糊
+#     blurred_image = cv2.GaussianBlur(Result_img, (5, 5), 0)
+#
+#     # 部分區域高斯模糊
+#     blurred_image = np.where(edges[..., np.newaxis] > 0, blurred_image, Result_img)
+#
+#     outimg4 = np.hstack([Img1, Result_img])
+#     # cv2.imshow("Key Points 2", outimg4)
+#     #
+#     cv2.imshow('Original Result', Result_img)
+#     cv2.imshow('Blurred Result', blurred_image)
+#     cv2.waitKey(0)
+#
+#     return blurred_image
 
 # 計算資料夾內的檔案數量
 def file_count(dir_path):
@@ -261,11 +329,12 @@ def file_count(dir_path):
 # 自動化處裡檔案內的照片 num可選擇禎數間隔 Feature_model關鍵點檢測方式
 def AutoProcessedData(path,num,keypoint_method):
     fileCount = file_count(path)
-    n = int(fileCount / num)
+    # n = int(fileCount / num)
+    n = int((fileCount - num) / 10) + 1
 
     Feature_model = keypoint_select(keypoint_method)
     for i in range(n):
-        idx1 = i * num + 1
+        idx1 = i * 10 + 1
         idx2 = idx1 + num
         if(idx2 < fileCount):
             formatted_idx1 = f'{idx1:03d}'
@@ -288,9 +357,9 @@ def AutoProcessedData(path,num,keypoint_method):
             homo = Feature_matching(image1, image2, kp1, des1, kp2, des2)
 
             image1, image2 = adjust_brightness(image1, image2)
-            Img1_bin = RemoveReflections(image1)
-            blurred_image = merge_images(image1, image2, Img1_bin, homo)
-            final_image = np.hstack([image1, image2, blurred_image])
+            # Img1_bin = RemoveReflections(image1)
+            merge_image1,merge_image2,merge_image3 = merge_images(image1, image2, homo)
+            final_image = np.hstack([image1, image2, merge_image1, merge_image2, merge_image3])
             print(path + '/autoProcess/{}_{}_{}.jpg'.format(keypoint_method,num,i))
             cv2.imwrite(path + '/autoProcess/final_{}_{}_{}.jpg'.format(keypoint_method,num,i), final_image)
 
@@ -333,38 +402,43 @@ if __name__ == '__main__':
     sift = cv2.SIFT_create()
 
     # 關鍵點演算法選擇
-    keypoint_method = 'akaze'
+    keypoint_method = 'sift'
 
     AutoProcessedData(file_path,50,keypoint_method)
 
     # 读取图片found
     # image1 = cv2.imread('pill_dataset/video_pilldata/output_image/02/061.jpg')
-    # image2 = cv2.imread('pill_dataset/video_pilldata/output_image/02/091.jpg')
+    # image2 = cv2.imread('pill_dataset/video_pilldata/output_image/02/111.jpg')
     # image1 = resize_image(image1)
     # image2 = resize_image(image2)
     # image1 = sharpen(image1)
     # image2 = sharpen(image2)
     #
-    # kp1,des1,kp2,des2 = Keypoint_detection(image1,image2,sift)
+    # # 關鍵點演算法選擇
+    # Feature_model = brisk
+    # # 尋找關鍵點
+    # kp1,des1,kp2,des2 = Keypoint_detection(image1,image2,Feature_model)
     # homo = Feature_matching(image1,image2,kp1,des1,kp2,des2)
-    # -------------------------------------------------
-    # 二值化後特徵匹配
-    # image1_Binary = Binary(image1)
-    # image2_Binary = Binary(image2)
-    # kp1,des1,kp2,des2 = Keypoint_detection(image1_Binary,image2_Binary,Feature_model)
-    # homo = Feature_matching(image1_Binary,image2_Binary,kp1,des1,kp2,des2)
-    # --------------------------------------------------
-
+    # # -------------------------------------------------
+    # # # 二值化後特徵匹配
+    # # # image1_Binary = Binary(image1)
+    # # # image2_Binary = Binary(image2)
+    # # # kp1,des1,kp2,des2 = Keypoint_detection(image1_Binary,image2_Binary,Feature_model)
+    # # # homo = Feature_matching(image1_Binary,image2_Binary,kp1,des1,kp2,des2)
+    # # --------------------------------------------------
+    #
     # image1,image2 = adjust_brightness(image1,image2)
-    # Img1_bin = RemoveReflections(image1)
+    # # Img1_bin = RemoveReflections(image1)
     # cv2.imshow('image1', image1)
     # cv2.imshow('image2', image2)
     #
-    # merge_images(image1, image2, Img1_bin, homo)
+    # # cv2.waitKey(0)
+    #
+    # merge_images(image1, image2, homo)
     # img = np.hstack([image1, image2])
     #
-    # cv2.imshow('drawPoint', img)
-    # cv2.setMouseCallback('drawPoint', show_xy)
-    #
+    # # cv2.imshow('drawPoint', img)
+    # # cv2.setMouseCallback('drawPoint', show_xy)
+    # #
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
